@@ -3,9 +3,16 @@ from torch import nn
 from torch.linalg import matrix_rank
 from torch.nn.functional import normalize, one_hot
 from typing import List, Union, Optional
+from multipledispatch import dispatch
 
 from initialization import Initializer
-from learning import DiscriminationOrganizer, ClassificationOrganizer, AdaptationOrganizer_u, AnchorOrganizer, AttentionOrganizer
+from learning import (
+    DiscriminationOrganizer, 
+    ClassificationOrganizer, 
+    AdaptationOrganizer_u, 
+    AnchorOrganizer, 
+    AttentionOrganizer
+)
 
 class LayerThresholding(nn.Module):
     """Custom activation function based on the layer response
@@ -282,10 +289,19 @@ class AttentionModule(nn.Module):
     
     
 class SequentialAttention(nn.Module):
-    def __init__(self, out_dim: int, nlayers: int, thresholds: Union[float,List[float]] = [], strengths: Union[float,List[float]] = []):
+    def __init__(
+        self, 
+        out_dim: int, 
+        nlayers: int, 
+        thresholds: Union[float,List[float]] = [], 
+        strengths: Union[float,List[float]] = []
+    ):
         super().__init__()
         self.nlayers = nlayers
-        self.layers = [AttentionModule(out_dim, threshold=t, strength=s) for t, s in zip(self._resolve(thresholds), self._resolve(strengths))]
+        self.layers = [
+            AttentionModule(out_dim, threshold=t, strength=s) 
+            for t, s in zip(self._resolve(thresholds), self._resolve(strengths))
+        ]
         
     def forward(self, inputs: torch.Tensor, train: bool = True):
         x = inputs.clone()
@@ -293,17 +309,28 @@ class SequentialAttention(nn.Module):
             x = layer(x, train=train)
         return x
     
-    def _resolve(self, parameter: Union[float,List[float]]):
-        if isinstance(parameter, list):
-            if len(parameter) == 0:
-                parameter = [0.2]*self.nlayers
-            elif len(parameter) != self.nlayers:
-                raise ValueError
-        elif isinstance(parameter, float):
-            parameter = [parameter]*self.nlayers
-        else:
-            raise TypeError
+    @dispatch(list)
+    def _resolve(self, parameter: List[float]):
+        if len(parameter) != self.nlayers:
+            print('parameter length mismatch, setting to default values')
+            parameter = [0.2]*self.nlayers
         return parameter
+    
+    @dispatch(float)
+    def _resolve(self, parameter: float):
+        return [parameter]*self.nlayers
+    
+    #def _resolve(self, parameter: Union[float,List[float]]):
+    #    if isinstance(parameter, list):
+    #        if len(parameter) == 0:
+    #            parameter = [0.2]*self.nlayers
+    #        elif len(parameter) != self.nlayers:
+    #            raise ValueError
+    #    elif isinstance(parameter, float):
+    #        parameter = [parameter]*self.nlayers
+    #    else:
+    #        raise TypeError
+    #    return parameter
     
     @property
     def nkeys(self):
